@@ -6,14 +6,13 @@
 package server.database;
 
 import com.google.gson.Gson;
-import java.sql.Array;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+import dajikala.parser.DijiKalaData;
+import static dajikala.parser.Main.getLinkData;
+import java.io.IOException;
+
+import java.sql.*;
 import java.util.ArrayList;
+
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.json.JSONArray;
@@ -25,7 +24,6 @@ import server.database.items.OrderTour;
 import server.properties.ProjectProperties;
 
 /**
- *
  * @author @AmirShk
  */
 public class Connector {
@@ -70,13 +68,15 @@ public class Connector {
                     + " NAME           TEXT          NOT NULL,"
                     + " PRICE          REAL          NOT NULL,"
                     + " BRAND          TEXT          NOT NULL,"
-                    + " SIZE           TEXT[]     NOT NULL,"
+                    + " SIZE           TEXT[]        NOT NULL,"
                     + " INVENTORY      INTEGER       NOT NULL,"
                     + " DELIVERYTIME   DATE          NOT NULL,"
                     + " IMAGESRC       TEXT          NOT NULL,"
                     + " IMAGESSRC      TEXT[]        NOT NULL,"
                     + " DISCOUNTPRICE  REAL,"
-                    + " ATTRIBUTES     JSON)";
+                    + " LASTVISITED    TIMESTAMP,"
+                    + " COUNTER        INTEGER       DEFAULT 0,"
+                    + " ATTRIBUTES     TEXT)";
             stmt.executeUpdate(carpetTable);
 
             //initial popularProduct
@@ -99,22 +99,40 @@ public class Connector {
 
             //Orders Details
             String ordersTourTable = "CREATE TABLE IF NOT EXISTS OrdersTour "
-                    + "(ID INT PRIMARY KEY           NOT NULL,"
+                    + "(ID             SERIAL        PRIMARY KEY,"
                     + " NAME           TEXT          NOT NULL,"
                     + " EMAIL          TEXT          NOT NULL,"
-                    + " CONTACTNUMBER  INTEGER       NOT NULL,"
+                    + " CONTACTNUMBER  TEXT          NOT NULL,"
                     + " TOURDATE       DATE          NOT NULL,"
-                    + " TOURTIME       TIME          NOT NULL)";
+                    + " TOURTIME       TIME          NOT NULL,"
+                    + " CARPETIDS      TEXT[]        NOT NULL,"
+                    + " TOTALAMOUNT    REAL          NOT NULL)";
             stmt.executeUpdate(ordersTourTable);
 
             //Orders Details
             String ordersTable = "CREATE TABLE IF NOT EXISTS Orders "
-                    + "(ID INT PRIMARY KEY           NOT NULL,"
+                    + "(ID             SERIAL        PRIMARY KEY,"
                     + " NAME           TEXT          NOT NULL,"
                     + " EMAIL          TEXT          NOT NULL,"
-                    + " CONTACTNUMBER  INTEGER       NOT NULL,"
-                    + " ADDRESS        TEXT          NOT NULL)";
+                    + " CONTACTNUMBER  TEXT          NOT NULL,"
+                    + " ADDRESS        TEXT          NOT NULL,"
+                    + " CARPETIDS      TEXT[]        NOT NULL,"
+                    + " TOTALAMOUNT    REAL          NOT NULL)";
+
             stmt.executeUpdate(ordersTable);
+
+            //DijiKala Data
+            String dijikalaDataTable = "CREATE TABLE IF NOT EXISTS dijikalaData "
+                    + "(ID                TEXT        PRIMARY KEY,"
+                    + " NAME              TEXT          NOT NULL,"
+                    + " IMAGELINK         TEXT          NOT NULL,"
+                    + " SCORE             TEXT          NOT NULL,"
+                    + " ISEXIST           BOOLEAN       NOT NULL,"
+                    + " PRICE             TEXT          NOT NULL,"
+                    + " SIMILARGOODSLINKS TEXT[]        NOT NULL,"
+                    + " SMALLIMAGELINKS   TEXT[]        NOT NULL)";
+
+            stmt.executeUpdate(dijikalaDataTable);
         } catch (Exception ex) {
             Logger.getLogger(Connector.class).log(Level.ERROR, null, ex);
         } finally {
@@ -127,14 +145,16 @@ public class Connector {
     public boolean InsertOrderData(Order order) {
         try {
             Connection c = openConnection();
-            String sql = "INSERT INTO Orders (NAME,EMAIL,CONTACTNUMBER,TOURDATE,TOURTIME) "
-                    + "VALUES (?,?,?,?,?);";
+            String sql = "INSERT INTO Orders (NAME,EMAIL,CONTACTNUMBER,ADDRESS,CARPETIDS,TOTALAMOUNT)"
+                    + "VALUES (?,?,?,?,?,?);";
 
             PreparedStatement pstmt = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
             pstmt.setString(1, order.name);
             pstmt.setString(2, order.email);
-            pstmt.setInt(3, order.contactNumber);
+            pstmt.setString(3, order.contactNumber);
             pstmt.setString(4, order.address);
+            pstmt.setArray(5, c.createArrayOf("TEXT", order.carpetIds));
+            pstmt.setInt(6, order.totalAmount);
 
             pstmt.executeUpdate();
             pstmt.close();
@@ -149,15 +169,17 @@ public class Connector {
     public boolean InsertOrderTourData(OrderTour orderTour) {
         try {
             Connection c = openConnection();
-            String sql = "INSERT INTO OrdersTour (NAME,EMAIL,CONTACTNUMBER,ADDRESS) "
-                    + "VALUES (?,?,?,?,?);";
+            String sql = "INSERT INTO OrdersTour (NAME,EMAIL,CONTACTNUMBER,TOURDATE,TOURTIME,CARPETIDS,TOTALAMOUNT) "
+                    + "VALUES (?,?,?,?,?,?,?);";
 
             PreparedStatement pstmt = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
             pstmt.setString(1, orderTour.name);
             pstmt.setString(2, orderTour.email);
-            pstmt.setInt(3, orderTour.contactNumber);
+            pstmt.setString(3, orderTour.contactNumber);
             pstmt.setDate(4, orderTour.tourDate);
             pstmt.setTime(5, orderTour.tourTime);
+            pstmt.setArray(6, c.createArrayOf("TEXT", orderTour.carpetIds));
+            pstmt.setInt(7, orderTour.totalAmount);
 
             pstmt.executeUpdate();
             pstmt.close();
@@ -173,8 +195,8 @@ public class Connector {
         Logger.getLogger(Connector.class).info(new Gson().toJson(carpet));
         try {
             Connection c = openConnection();
-            String sql = "INSERT INTO CarpetDetails (NAME,PRICE,BRAND,SIZE,INVENTORY,DELIVERYTIME,IMAGESRC,IMAGESSRC,DISCOUNTPRICE,ATTRIBUTES) "
-                    + "VALUES (?,?,?,?,?,?,?,?,?,?);";
+            String sql = "INSERT INTO CarpetDetails (NAME,PRICE,BRAND,SIZE,INVENTORY,DELIVERYTIME,IMAGESRC,IMAGESSRC,DISCOUNTPRICE,ATTRIBUTES,COUNTER) "
+                    + "VALUES (?,?,?,?,?,?,?,?,?,?,?);";
             PreparedStatement pstmt = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
             pstmt.setString(1, carpet.name);
             pstmt.setDouble(2, carpet.price);
@@ -185,10 +207,8 @@ public class Connector {
             pstmt.setString(7, carpet.imageSrc);
             pstmt.setArray(8, c.createArrayOf("TEXT", carpet.imageSrcs));
             pstmt.setDouble(9, carpet.discountPrice);
-            PGobject jsonObject = new PGobject();
-            jsonObject.setType("json");
-            jsonObject.setValue(carpet.attributes);
-            pstmt.setObject(10, jsonObject);
+            pstmt.setObject(10, carpet.attributes);
+            pstmt.setInt(11, 0);
 
             pstmt.executeUpdate();
             pstmt.close();
@@ -220,6 +240,7 @@ public class Connector {
                 carpet.deliveryTime = rs.getDate("DELIVERYTIME");
                 carpet.imageSrcs = (String[]) rs.getArray("IMAGESSRC").getArray();
                 carpet.imageSrc = rs.getString("IMAGESRC");
+                carpet.inventory = rs.getInt("INVENTORY");
             }
             rs.close();
         } catch (Exception ex) {
@@ -233,14 +254,15 @@ public class Connector {
         return jsonCarpet;
     }
 
-    public JSONObject getAllCarpetsDetails() throws SQLException {
+    public JSONObject getAllCarpetsDetails(String query) throws SQLException {
         ArrayList<Carpet> carpets = new ArrayList<>();
         Connection c = null;
         Statement stmt = null;
         try {
+            query = "'%" + query + "%'";
             c = openConnection();
             stmt = c.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT * FROM carpetdetails;");
+            ResultSet rs = stmt.executeQuery("SELECT * FROM carpetdetails WHERE LOWER(name) LIKE " + query + ";");
             while (rs.next()) {
                 Carpet carpet = new Carpet();
                 carpet.id = rs.getInt("ID");
@@ -254,6 +276,7 @@ public class Connector {
                 carpet.deliveryTime = rs.getDate("DELIVERYTIME");
                 carpet.imageSrcs = (String[]) rs.getArray("IMAGESSRC").getArray();
                 carpet.imageSrc = rs.getString("IMAGESRC");
+                carpet.inventory = rs.getInt("INVENTORY");
                 carpets.add(carpet);
             }
             rs.close();
@@ -270,14 +293,20 @@ public class Connector {
         return jsonObject;
     }
 
-    public JSONObject getAllMostRecent() throws SQLException {
+    public JSONObject getAllRecentOrPopularCarpet(Boolean isMost) throws SQLException {
         ArrayList<Carpet> carpets = new ArrayList<>();
         Connection c = null;
         Statement stmt = null;
         try {
             c = openConnection();
             stmt = c.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT * FROM MostRecent;");
+            String query;
+            if (isMost) {
+                query = "SELECT * FROM CarpetDetails ORDER BY LASTVISITED DESC LIMIT 5;";
+            } else {
+                query = "SELECT * FROM CarpetDetails ORDER BY COUNTER DESC LIMIT 5;";
+            }
+            ResultSet rs = stmt.executeQuery(query);
             while (rs.next()) {
                 Carpet carpet = new Carpet();
                 carpet.id = rs.getInt("ID");
@@ -285,6 +314,7 @@ public class Connector {
                 carpet.price = rs.getDouble("PRICE");
                 carpet.discountPrice = rs.getDouble("DISCOUNTPRICE");
                 carpet.imageSrc = rs.getString("IMAGESRC");
+                carpet.inventory = rs.getInt("INVENTORY");
                 carpets.add(carpet);
             }
             rs.close();
@@ -300,35 +330,55 @@ public class Connector {
         jsonObject.put("Carpets", jsonCarpet);
         return jsonObject;
     }
-    
-    public JSONObject getAllPopularProduct() throws SQLException {
-        ArrayList<Carpet> carpets = new ArrayList<>();
-        Connection c = null;
-        Statement stmt = null;
+
+    public void carpetViewLogs(int id) {
         try {
-            c = openConnection();
-            stmt = c.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT * FROM PopularProduct;");
-            while (rs.next()) {
-                Carpet carpet = new Carpet();
-                carpet.id = rs.getInt("ID");
-                carpet.name = rs.getString("NAME");
-                carpet.price = rs.getDouble("PRICE");
-                carpet.discountPrice = rs.getDouble("DISCOUNTPRICE");
-                carpet.imageSrc = rs.getString("IMAGESRC");
-                carpets.add(carpet);
-            }
-            rs.close();
+            Connection c = openConnection();
+
+            String sql = "UPDATE CarpetDetails SET COUNTER = COUNTER + 1 , LASTVISITED = ? WHERE ID = ?";
+
+            PreparedStatement pstmt = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+            Timestamp timestamp = new Timestamp(System.currentTimeMillis());
+            pstmt.setTimestamp(1, timestamp);
+            pstmt.setInt(2, id);
+
+            pstmt.executeUpdate();
+            pstmt.close();
         } catch (Exception ex) {
             Logger.getLogger(Connector.class).log(Level.ERROR, null, ex);
-        } finally {
-            stmt.close();
-            c.close();
         }
-        String jsonInString = new Gson().toJson(carpets);
-        JSONArray jsonCarpet = new JSONArray(jsonInString);
+        Logger.getLogger(Connector.class).log(Level.INFO, "Table update successfully");
+    }
+
+    public JSONObject insertDijikalaData(String link) {
         JSONObject jsonObject = new JSONObject();
-        jsonObject.put("Carpets", jsonCarpet);
+        try {
+            DijiKalaData dkd;
+            dkd = getLinkData(link);
+            Connection c = openConnection();
+            String sql = "INSERT INTO OrdersTour (ID,NAME,IMAGELINK,SCORE,ISEXIST,PRICE,SIMILARGOODSLINKS,SMALLIMAGELINKS) "
+                    + "VALUES (?,?,?,?,?,?,?,?);";
+
+            PreparedStatement pstmt = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+            pstmt.setString(1, dkd.id);
+            pstmt.setString(2, dkd.persianName);
+            pstmt.setString(3, dkd.imageLink);
+            pstmt.setString(4, dkd.score);
+            pstmt.setBoolean(5, dkd.isExist);
+            pstmt.setString(6, dkd.price);
+            pstmt.setArray(7, c.createArrayOf("TEXT", dkd.similarGoodsLinks));
+            pstmt.setArray(8, c.createArrayOf("TEXT", dkd.smallImageLinks));
+
+            pstmt.executeUpdate();
+            pstmt.close();
+
+            String jsonInString = new Gson().toJson(dkd);
+            jsonObject.put("DijikalaData", jsonInString);
+        } catch (IOException ex) {
+            java.util.logging.Logger.getLogger(Connector.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
+        } catch (SQLException ex) {
+            java.util.logging.Logger.getLogger(Connector.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
+        }
         return jsonObject;
     }
 }

@@ -1,9 +1,18 @@
 package server.rest;
 
 import com.google.gson.Gson;
-import java.sql.Date;
+import dajikala.parser.DijiKalaData;
+import static dajikala.parser.Main.getLinkData;
+import java.io.IOException;
 import java.sql.SQLException;
-import java.util.ArrayList;
+import java.sql.Time;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.sql.Date;
+import java.util.Locale;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 import org.json.JSONObject;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.*;
@@ -14,6 +23,7 @@ import server.database.Connector;
 import server.database.items.Carpet;
 import server.database.items.Order;
 import server.database.items.OrderTour;
+import server.properties.ProjectProperties;
 
 /**
  *
@@ -24,7 +34,7 @@ public class RestJsonAPI {
 
     @POST
     @Path("order")
-    @Consumes(MediaType.APPLICATION_XML)
+    @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response saveOrder(@Context HttpServletRequest request, String jsonData) throws Exception {
         Order order = new Gson().fromJson(jsonData, Order.class);
@@ -39,10 +49,19 @@ public class RestJsonAPI {
 
     @POST
     @Path("orderTour")
-    @Consumes(MediaType.APPLICATION_XML)
+    @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response saveOrderTour(@Context HttpServletRequest request, String jsonData) throws Exception {
+        //convert times and date
+        JSONObject jsonObject = new JSONObject(jsonData);
+        DateFormat df = new SimpleDateFormat("yy:MM:dd", Locale.ENGLISH);
+        DateFormat formatter = new SimpleDateFormat("HH:mm");
+        Date date = new Date(df.parse(jsonObject.getString("date")).getTime());
+        Time time = new java.sql.Time(formatter.parse(jsonObject.getString("time")).getTime());
+
         OrderTour orderTour = new Gson().fromJson(jsonData, OrderTour.class);
+        orderTour.tourDate = date;
+        orderTour.tourTime = time;
         Connector connector = Connector.getInstance();
         boolean status = connector.InsertOrderTourData(orderTour);
         if (status) {
@@ -54,7 +73,7 @@ public class RestJsonAPI {
 
     @POST
     @Path("pushCarpet")
-    @Consumes(MediaType.APPLICATION_XML)
+    @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response pushCarpetDetails(@Context HttpServletRequest request, String jsonData) throws Exception {
         Carpet carpet = new Gson().fromJson(jsonData, Carpet.class);
@@ -72,16 +91,17 @@ public class RestJsonAPI {
     @Produces(MediaType.APPLICATION_JSON)
     public Response getCarpetById(@Context HttpServletRequest request, @PathParam("id") int id) throws SQLException {
         Connector connector = Connector.getInstance();
+        connector.carpetViewLogs(id);
         JSONObject jsonCarpet = connector.getCarpetDetailsbyID(id);
         return RestApplication.returnJsonObject(request, jsonCarpet);
     }
 
     @GET
-    @Path("getCarpets")
+    @Path("getCarpets/{query}")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response getAllCarpets(@Context HttpServletRequest request) throws SQLException {
+    public Response getAllCarpets(@Context HttpServletRequest request, @PathParam("query") String query) throws SQLException {
         Connector connector = Connector.getInstance();
-        JSONObject jsonCarpet = connector.getAllCarpetsDetails();
+        JSONObject jsonCarpet = connector.getAllCarpetsDetails(query.toLowerCase());
         return RestApplication.returnJsonObject(request, jsonCarpet);
     }
 
@@ -90,16 +110,16 @@ public class RestJsonAPI {
     @Produces(MediaType.APPLICATION_JSON)
     public Response getMostRecent(@Context HttpServletRequest request) throws SQLException {
         Connector connector = Connector.getInstance();
-        JSONObject jsonCarpet = connector.getAllMostRecent();
+        JSONObject jsonCarpet = connector.getAllRecentOrPopularCarpet(true);
         return RestApplication.returnJsonObject(request, jsonCarpet);
     }
 
     @GET
-    @Path("getPoularCarpet")
+    @Path("getPopularCarpet")
     @Produces(MediaType.APPLICATION_JSON)
     public Response getPoularCarpet(@Context HttpServletRequest request) throws SQLException {
         Connector connector = Connector.getInstance();
-        JSONObject jsonCarpet = connector.getAllPopularProduct();
+        JSONObject jsonCarpet = connector.getAllRecentOrPopularCarpet(false);
         return RestApplication.returnJsonObject(request, jsonCarpet);
     }
 
@@ -128,11 +148,12 @@ public class RestJsonAPI {
         carpet.size = sizes;
         carpet.deliveryTime = new Date(2021, 2, 20);
         JSONObject json = new JSONObject();
-        json.append("Shape", "Squere");
-        json.append("Color", "blue");
-        json.append("Shane", 1000);
-        json.append("Test", "test");
+        json.put("Shape", "Squere");
+        json.put("Color", "blue");
+        json.put("Shane", 1000);
+        json.put("Test", "test");
         carpet.attributes = json.toString();
+        System.out.println(carpet.attributes);
         boolean status = connector.InsertCarpetDetails(carpet);
         if (status) {
             return RestApplication.returnJsonObject(request, new JSONObject().put("status", "success"));
@@ -140,4 +161,14 @@ public class RestJsonAPI {
             return RestApplication.returnJsonObject(request, new JSONObject().put("status", "fail"));
         }
     }
+
+    @GET
+    @Path("dijikalaParser/{link}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response dijikalaParser(@Context HttpServletRequest request, String link) throws SQLException {
+        Connector connector = Connector.getInstance();
+        JSONObject res = connector.insertDijikalaData(link);
+        return RestApplication.returnJsonObject(request, res);
+    }
+
 }

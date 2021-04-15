@@ -16,8 +16,10 @@ public class OrderTour {
 
     public String name;
     public String email;
-    public int contactNumber;
+    public String contactNumber;
     public Date tourDate;
     public Time tourTime;
+    public String[] carpetIds;
+    public int totalAmount;
 
 }
