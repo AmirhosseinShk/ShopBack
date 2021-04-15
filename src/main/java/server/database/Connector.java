@@ -7,7 +7,7 @@ package server.database;
 
 import com.google.gson.Gson;
 import dajikala.parser.DijiKalaData;
-import static dajikala.parser.Main.getLinkData;
+import dajikala.parser.ExtractDijiKalaData;
 import java.io.IOException;
 
 import java.sql.*;
@@ -352,9 +352,10 @@ public class Connector {
 
     public JSONObject insertDijikalaData(String link) {
         JSONObject jsonObject = new JSONObject();
+        ExtractDijiKalaData extractDijiKalaData = new ExtractDijiKalaData();
         try {
             DijiKalaData dkd;
-            dkd = getLinkData(link);
+            dkd = extractDijiKalaData.getLinkData(link);
             Connection c = openConnection();
             String sql = "INSERT INTO OrdersTour (ID,NAME,IMAGELINK,SCORE,ISEXIST,PRICE,SIMILARGOODSLINKS,SMALLIMAGELINKS) "
                     + "VALUES (?,?,?,?,?,?,?,?);";

@@ -17,12 +17,13 @@ import server.properties.ProjectProperties;
  *
  * @author @AmirShk
  */
-public class Main {
+public class ExtractDijiKalaData {
 
-    public static DijiKalaData getLinkData(String link) throws IOException {
+    public DijiKalaData getLinkData(String link) throws IOException {
         String baseURL = ProjectProperties.getInstance().getProperty("dijikala.url");
         DijiKalaData dkd = new DijiKalaData();
         dkd.id = link;
+        dkd.link = baseURL + link;
         Connection conncetion = Jsoup.connect(baseURL + link);
         Document doc = conncetion.header("Accept-Encoding", "gzip, deflate")
                 .userAgent("Mozilla/5.0 (Windows NT 6.1; WOW64; rv:23.0) Gecko/20100101 Firefox/23.0")
@@ -34,7 +35,9 @@ public class Main {
         Element img = doc.getElementsByClass("js-gallery-img").first();
         dkd.imageLink = img.attr("data-src");
         Element score = doc.getElementsByClass("u-text-bold js-seller-final-score").first();
-        dkd.score = persianToEnglishConverter(score.html());
+        if (score != null) {
+            dkd.score = persianToEnglishConverter(score.html());
+        }
         Elements isExist = doc.getElementsByClass("c-product__delivery-warehouse js-provider-main-title c-product__delivery-warehouse--no-lead-time");
         if (isExist.size() > 0) {
             dkd.isExist = true;
@@ -42,7 +45,9 @@ public class Main {
             dkd.isExist = false;
         }
         Element price = doc.getElementsByClass("c-product__seller-price-pure js-price-value").first();
-        dkd.price = persianToEnglishConverter(price.html());
+        if (price != null) {
+            dkd.price = persianToEnglishConverter(price.html());
+        }
         Elements smallImage = doc.getElementsByClass("thumb-wrapper");
         String[] smallImageLinks = new String[smallImage.size()];
         for (int i = 0; i < smallImage.size(); i++) {
@@ -58,7 +63,7 @@ public class Main {
         return dkd;
     }
 
-    public static String persianToEnglishConverter(String num) {
+    private String persianToEnglishConverter(String num) {
         String res = "";
         for (int i = 0; i < num.length(); i++) {
             String s = Character.toString(num.charAt(i));
@@ -72,7 +77,7 @@ public class Main {
         return res;
     }
 
-    public static String faToEn(String num) {
+    private String faToEn(String num) {
         return num
                 .replace("۰", "0")
                 .replace("۱", "1")

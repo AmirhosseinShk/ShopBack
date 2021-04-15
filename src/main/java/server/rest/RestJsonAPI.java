@@ -1,8 +1,6 @@
 package server.rest;
 
 import com.google.gson.Gson;
-import dajikala.parser.DijiKalaData;
-import static dajikala.parser.Main.getLinkData;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.sql.Time;

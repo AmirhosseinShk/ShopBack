@@ -19,6 +19,7 @@ public class DijiKalaData {
     public String price;
     public String[] smallImageLinks;
     public String[] similarGoodsLinks;
+    public String link;
 
     @Override
     public String toString() {
