@@ -35,7 +35,7 @@ public class DijiKala_Crowler {
     public static void main(String[] args) throws IOException {
         DijiKala_Crowler dijiKala_Crowler = new DijiKala_Crowler();
         //Enter Ur link
-        String link = "https://www.digikala.com/search/category-men-clothing/?brand[0]=1385&pageno=1&last_filter=brand&last_value=20988&sortby=4";
+        String link = "https://www.digikala.com/search/category-men-shoes/";
         List<String> links = dijiKala_Crowler.getBrandKalas(link);
         ExtractDijiKalaData edkd = new ExtractDijiKalaData();
         List<DijiKalaData> dijiKalaDataInfo = new ArrayList<>();
